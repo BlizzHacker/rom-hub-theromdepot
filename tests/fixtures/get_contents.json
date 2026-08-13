@@ -1,0 +1,75 @@
+{
+  "name": "/",
+  "type": "directory",
+  "path": "/",
+  "size": 11386,
+  "mtime": "2026-08-12T03:00:00.000Z",
+  "children": [
+    {
+      "name": "Nintendo 64",
+      "type": "directory",
+      "path": "Nintendo 64",
+      "size": 9338,
+      "mtime": "2026-08-11T03:00:00.000Z",
+      "children": [
+        {
+          "name": "Europe",
+          "type": "directory",
+          "path": "Nintendo 64/Europe",
+          "size": 1234,
+          "children": [
+            {
+              "name": "Mario Party (Europe) (En,Fr,De).z64",
+              "type": "file",
+              "path": "Nintendo 64/Europe/Mario Party (Europe) (En,Fr,De).z64",
+              "size": 1234,
+              "mtime": "2026-08-10T03:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "name": "USA",
+          "type": "directory",
+          "path": "Nintendo 64/USA",
+          "size": 8104,
+          "children": [
+            {
+              "name": "The Legend of Zelda - Ocarina of Time.z64",
+              "type": "file",
+              "path": "Nintendo 64/USA/The Legend of Zelda - Ocarina of Time.z64",
+              "size": 8104,
+              "mtime": "2026-08-09T03:00:00.000Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Super Nintendo Entertainment System",
+      "type": "directory",
+      "path": "Super Nintendo Entertainment System",
+      "size": 2048,
+      "children": [
+        {
+          "name": "Contra III - The Alien Wars (USA).zip",
+          "type": "file",
+          "path": "Super Nintendo Entertainment System/USA/Contra III - The Alien Wars (USA).zip",
+          "size": 2048,
+          "mtime": "2026-08-08T03:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "name": "Mystery Console",
+      "type": "directory",
+      "children": [
+        {
+          "name": "Wrong Guess.rom",
+          "type": "file",
+          "path": "Mystery Console/Wrong Guess.rom",
+          "size": 99
+        }
+      ]
+    }
+  ]
+}

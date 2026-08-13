@@ -1,120 +1,148 @@
 # The ROM Depot provider for ROM Hub / ROMarr
 
-**Status: not installable. This repository is documentation and a catalogue
-entry, not a working provider.**
+An installable, browser-assisted provider for The ROM Depot's complete file
+catalogue.
 
-| Capability | Status |
+| Capability | What it does |
 |---|---|
-| `search` | **Unavailable** — the API requires a logged-in session, which an RPP v1 plugin cannot hold |
-| `importer` | **Unavailable** — same reason |
-| `stream` | **Unavailable** — the site hosts no player |
+| `search` | Searches a browser-saved `/api/getContents` tree locally |
+| `stream` | Opens that file's authenticated `/api/download/<path>` route in the operator's own browser |
+| `importer` | Not declared: a server-side fetch would not have the browser's login cookie |
 
-This is the most frustrating result of the seven-site survey, because The ROM
-Depot is technically the *easiest* of them all — and it is still blocked, by
-the plugin runtime rather than by the site.
+No The ROM Depot username, password, cookie or token is accepted by this
+plugin. Sign-in stays in the browser where it already works.
 
-## What the site offers
+## Why the browser is part of the design
 
-`theromdepot.com` is a Vite/React single-page app. It has no `robots.txt` —
-requesting one returns the SPA shell, because the server serves `index.html`
-for every unmatched route. Its JavaScript bundle
-(`/assets/index-DVaFPJRP.js`, 989 KB) names a small, clean API:
+The site's current web application reads the entire directory with one call:
 
-```
-/api/getContents        /api/download/          /api/login
-/api/checkLoginStatus   /api/profile            /api/download-history
-/api/register           /api/forgot-password    /api/change-password
+```text
+GET https://theromdepot.com/api/getContents
 ```
 
-`GET /api/getContents` is a **single, unpaginated call that returns the entire
-directory tree as JSON** — `name`, `size`, `mtime`, `path`, and a child count
-per node. No pagination to walk, no HTML to parse, no rate limiting to
-respect, no anti-bot challenge anywhere on the site.
+The returned recursive tree uses the fields the application itself consumes:
+`type`, `name`, `path`, `size`, `mtime` and `children`. Files link to:
 
-That would have made this the easiest provider of the seven by a wide margin.
-
-## Why it cannot be built anyway
-
-`GET /api/getContents` returns:
-
-```
-HTTP/1.1 401 Unauthorized
-{"message":"Unauthorized"}
+```text
+GET https://theromdepot.com/api/download/<path>
 ```
 
-Browsing requires an account. That alone would be workable if a plugin could
-log in — but it cannot, and this is worth being precise about, because it is a
-property of ROM Hub rather than a difficulty to be overcome.
+Both routes require the site's session cookie. ROM Hub plugins intentionally
+cannot receive that cookie, but a `stream` URL is handed to the operator's own
+browser. The workflow therefore has a clean boundary:
 
-From the site's own bundle, the session is established by:
-
-```js
-fetch("/api/login", {method: "POST", headers: {"Content-Type": "application/json"},
-                     body: JSON.stringify({username, password})})
+```text
+signed-in browser -> save the one full-tree JSON document
+ROM Hub plugin     -> search that local document, with no network request
+signed-in browser <- open the selected /api/download path
 ```
 
-…and carried by a **cookie** — credentials are `same-origin`, and no
-`Authorization` header appears anywhere in the bundle.
+This is not a crawl and it is not a login automation. The operator performs
+the ordinary site login, and one API response contains the full directory.
 
-Now the runtime, from `rom_hub_sdk/context.py` and `rom_hub/broker/fetcher.py`:
+## Setup
 
-* **`ctx.http` exposes `get()` and nothing else.** There is no POST, so the
-  login call cannot be made.
-* **The cookie jar is cleared before every single request** —
-  `fetcher.get()` calls `self._client.cookies.clear()` deliberately, so that
-  one plugin's `Set-Cookie` cannot ride along on another plugin's request to
-  the same host. So even if a session existed, it could not be carried into
-  the next call.
-* A plugin has no socket of its own either: the subprocess installs a seccomp
-  filter before any plugin module is imported, so `import socket` raises
-  `PermissionError`.
+1. Sign in at `https://theromdepot.com` in Brave, Chrome, Edge, Firefox, or
+   another normal browser.
+2. In that signed-in browser open
+   `https://theromdepot.com/api/getContents`.
+3. Save the JSON response. If ROM Hub runs on another machine or in a
+   container, copy or mount the file somewhere that process can read.
+4. Install this repository and configure the saved path:
 
-**So an RPP v1 plugin cannot authenticate to this site.** Not "not yet", and
-not "unless you try harder" — there is no code that could be written inside a
-plugin that would do it.
+   ```sh
+   rom-hub plugin install https://git.moveweight.com/BlizzHacker/romarr-plugin-theromdepot
+   rom-hub plugin config theromdepot --set catalog_path=/srv/romarr/theromdepot-getContents.json
+   ```
 
-## What was deliberately not done
+5. Search normally:
 
-* **No login was attempted.** The owner has an account here; it was not used,
-  and no credential of any kind was entered anywhere.
-* **The JSON schema of `getContents` was not verified**, because seeing it
-  requires being logged in. The field names above are read off the site's own
-  JavaScript, not off a response.
+   ```sh
+   rom-hub search "mario party" --platform n64
+   ```
 
-  That is the reason this repository ships no parser. Writing one against a
-  schema nobody has seen would produce exactly the thing this project refuses
-  elsewhere: something that looks like it works.
+When a result is opened through the stream/browser handoff, the browser must
+still be logged in to The ROM Depot. If the session expired, the site will ask
+you to sign in; the plugin does not intercept or replace that flow.
 
-* **No `password` config key is declared.** This is a deliberate departure
-  worth flagging: a config field that accepts a credential the plugin can
-  never transmit is a place for a password to sit for no reason. When a
-  working path exists (below), the credential belongs to whichever component
-  actually performs the login — and in both candidate designs, that component
-  is the operator's own browser, which already has it.
+### Refreshing the catalogue
 
-## The two paths that would actually work
+Repeat steps 2-3. The plugin reads the configured file for each search, so an
+updated export is visible without reinstalling the plugin. Replace the old
+file only after the new JSON is completely saved to avoid a partial read.
 
-Either of these is a real project, and both keep the credential with the
-operator rather than in the plugin:
+ROMarr Capture's normalized shape is accepted too:
 
-1. **Operator-supplied export.** Because `getContents` is one GET returning
-   the whole tree, an operator who is already logged in can save that JSON
-   from their browser and point the plugin at the file. The provider then
-   reads and validates it and never touches the network for the catalogue at
-   all. This is the smaller of the two and is the natural fit here.
+```json
+{
+  "items": [
+    {
+      "id": "Nintendo 64/Europe/Mario Party (Europe).z64",
+      "title": "Mario Party (Europe)",
+      "name": "Mario Party (Europe).z64",
+      "platform": "Nintendo 64",
+      "region": "Europe",
+      "size": 33554432
+    }
+  ]
+}
+```
 
-2. **Companion capture extension**, exactly as the Vimm.net provider does: a
-   Manifest V3 extension builds the catalogue from pages the operator's own
-   browser is already authorised to see, and the provider revalidates every
-   URL before using it.
+## Search and validation behavior
 
-Both need the JSON schema confirmed first, which needs one logged-in look at
-`/api/getContents` — an operator's action, not this survey's.
+The full tree is flattened locally. Search terms may match the title,
+filename, platform, region, or complete directory path. Exact and prefix title
+matches rank first, platform filters accept either the site's label
+(`Nintendo 64`) or ROMarr's canonical slug (`n64`), and the caller's result
+limit is always honored.
+
+Every result is revalidated before it becomes a browser URL:
+
+- the path must be relative, with no traversal, query, fragment, control
+  character, empty component, or embedded URL;
+- each URL component is percent-encoded independently;
+- a stream handoff must still exist in the configured catalogue, so a forged
+  or stale `source_id` cannot manufacture an arbitrary download path;
+- only directory names with an exact platform mapping are emitted. Unknown or
+  ambiguous folders, including bare `Neo Geo`, are omitted instead of guessed.
+
+The search result records `login_required=true`,
+`browser_authenticated=true`, `action=download`, the original filename and
+site platform, and the fact that `/api/getContents` was the catalogue source.
+
+## What is deliberately absent
+
+There is no `username`, `password`, `cookie` or `session` config key. There is
+also no importer. An importer tells the ROM Hub host to fetch bytes, but the
+authenticated cookie belongs to the user's browser, not the host. Advertising
+an importer would turn a working browser download into a guaranteed server
+401. The browser handoff is the supported download path.
+
+The plugin makes no request to The ROM Depot during search or resolution. Its
+network allowlist exists because the URL handed to the browser is still checked
+by ROM Hub before it is opened.
+
+## Development
+
+The suite uses only local fixtures and never contacts the site:
+
+```sh
+pytest -q
+```
+
+It covers the live application's recursive tree shape, normalized captures,
+platform mapping against ROMarr's real table, query/filter/ranking behavior,
+authenticated download URL construction, path traversal and URL-injection
+refusals, stale-id refusal, manifest parsing, catalogue/manifest drift, and the
+absence of credential fields and an importer.
 
 ## Terms
 
-Nothing here fetches, indexes or redistributes anything. This repository
-records a finding.
+An account grants access under The ROM Depot's own terms; it does not grant a
+new redistribution licence. This plugin indexes metadata the signed-in
+operator can already see and opens the site's own download route in that same
+operator's browser. Operators remain responsible for what they download and
+how they use it.
 
 ## License
 
