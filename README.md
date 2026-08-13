@@ -51,7 +51,7 @@ the ordinary site login, and one API response contains the full directory.
 4. Install this repository and configure the saved path:
 
    ```sh
-   rom-hub plugin install https://git.moveweight.com/BlizzHacker/romarr-plugin-theromdepot
+   rom-hub plugin install https://git.moveweight.com/BlizzHacker/rom-hub-theromdepot
    rom-hub plugin config theromdepot --set catalog_path=/srv/romarr/theromdepot-getContents.json
    ```
 
